@@ -1,0 +1,51 @@
+name: Construir instalador
+
+on:
+  workflow_dispatch:        # botón "Run workflow" en la pestaña Actions
+  push:
+    tags: ["v*"]            # al crear una versión (ej. v1.0) también publica un Release
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install customtkinter faster-whisper imageio-ffmpeg pyinstaller
+
+      - name: Empaquetar la app con PyInstaller
+        run: >
+          pyinstaller --noconfirm --clean --noconsole --onedir --name AudioStudio
+          --collect-all customtkinter --collect-all faster_whisper --collect-all imageio_ffmpeg
+          --collect-all ctranslate2 --collect-all onnxruntime --collect-all av
+          audio_studio.py
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Crear el instalador
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" instalador.iss'
+
+      - name: Guardar el instalador como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioStudio_Instalador
+          path: salida/AudioStudio_Instalador.exe
+
+      - name: Publicar Release (solo si es una versión con tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: salida/AudioStudio_Instalador.exe
